@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1f3a5f">
+<title>حسابات الشركاء</title>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1d2433;--muted:#6b7385;--line:#e3e7ee;--brand:#1f3a5f;--in:#0f7b4f;--out:#b3261e;--soft:#eef3fa}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.6}
+header{background:var(--brand);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:8px}
+header h1{font-size:18px;margin:0}
+header .mode{font-size:12px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:20px}
+main{max-width:760px;margin:0 auto;padding:14px 12px 90px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+h2{font-size:17px;margin:4px 0 10px}
+h3{font-size:15px;margin:14px 0 8px;color:var(--brand)}
+.muted{color:var(--muted);font-size:13px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.partner{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--soft)}
+.partner b{display:block;font-size:15px;margin-bottom:4px}
+.row{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.in{color:var(--in)}.out{color:var(--out)}
+.num{font-variant-numeric:tabular-nums;font-weight:700;direction:ltr;unicode-bidi:isolate}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs button{flex:1}
+button,.btn{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--brand);color:#fff;cursor:pointer}
+button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
+button.sel{background:var(--brand);color:#fff}
+button.danger{background:#fff;color:var(--out);border:1px solid #f1c5c2;padding:4px 10px;font-size:13px}
+button.small{padding:6px 10px;font-size:14px}
+input,select,textarea{font:inherit;width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
+.order{cursor:pointer}
+.order .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.order .top b{font-size:16px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{font-size:12px;background:var(--soft);border-radius:20px;padding:2px 10px}
+.chip.done{background:#e3f4ec;color:var(--in)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:8px 4px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px}
+.form{background:var(--soft);border-radius:12px;padding:10px;margin-top:8px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.center{text-align:center}
+#lock{max-width:380px;margin:60px auto}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1d2433;color:#fff;padding:10px 18px;border-radius:24px;font-size:14px;z-index:20;display:none}
+.hidden{display:none!important}
+.total{background:var(--brand);color:#fff}
+.total .muted{color:#d6deea}
+@media(max-width:420px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>حسابات الشركاء</h1><span class="mode" id="mode">مشاهدة</span></header>
+<main>
+
+<section id="lock" class="card">
+  <h2 class="center">🔒 أدخل كلمة السر</h2>
+  <p class="muted center" id="lockMsg">البيانات مشفّرة، ولا تُفتح إلا بكلمة السر.</p>
+  <input id="pw" type="password" autocomplete="current-password" placeholder="كلمة السر">
+  <div class="actions"><button id="openBtn" style="flex:1">فتح</button></div>
+</section>
+
+<section id="app" class="hidden">
+  <div class="tabs">
+    <button id="tabSum" class="sel">الملخص</button>
+    <button id="tabOrders" class="ghost">الطلبيات</button>
+  </div>
+  <div id="view"></div>
+  <div class="card" id="editBox">
+    <div id="editOff">
+      <p class="muted">التسجيل والتعديل لحامد فقط.</p>
+      <button class="ghost small" id="editOn">دخول التعديل</button>
+    </div>
+    <div id="editOnBox" class="hidden">
+      <p class="muted">وضع التعديل مفعّل على هذا الجهاز.</p>
+      <button class="ghost small" id="editOut">خروج من التعديل</button>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+var REPO="mazuna-kw/Staier", PATH="hesab/data.json", BRANCH="main";
+var PARTNERS=["حامد","نواف","عبدالله الحميد","أبو عبدالرحمن"];
+var state={data:null,pw:null,sha:null,tab:"sum",open:null};
+var $=function(id){return document.getElementById(id)};
+var enc=new TextEncoder(),dec=new TextDecoder();
+
+function toast(t){var e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(e._t);e._t=setTimeout(function(){e.style.display="none"},2600)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function money(n){n=Math.round((+n||0)*1000)/1000;return n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:3})+" د.ك"}
+function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function b64(buf){var s="",a=new Uint8Array(buf);for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s)}
+function unb64(s){var b=atob(s),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
+function utf8b64(s){return b64(enc.encode(s))}
+
+/* تشفير AES-GCM بمفتاح مشتق من كلمة السر (PBKDF2) */
+async function keyFrom(pw,salt){var base=await crypto.subtle.importKey("raw",enc.encode(pw),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:250000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+async function seal(obj,pw){var salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));var k=await keyFrom(pw,salt);var ct=await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},k,enc.encode(JSON.stringify(obj)));return {v:1,salt:b64(salt),iv:b64(iv),ct:b64(ct)}}
+async function open_(box,pw){var k=await keyFrom(pw,unb64(box.salt));var pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(box.iv)},k,unb64(box.ct));return JSON.parse(dec.decode(pt))}
+
+function token(){try{return localStorage.getItem("hesab_token")||""}catch(e){return ""}}
+function editing(){return !!token()}
+
+async function fetchBox(){
+  var r=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+PATH+"?ref="+BRANCH+"&t="+Date.now(),{headers:Object.assign({"Accept":"application/vnd.github+json"},token()?{"Authorization":"Bearer "+token()}:{}),cache:"no-store"});
+  if(r.status===404)return null;
+  if(!r.ok){var r2=await fetch("data.json?t="+Date.now(),{cache:"no-store"});if(r2.ok)return {box:await r2.json(),sha:null};throw new Error("load")}
+  var j=await r.json();return {box:JSON.parse(dec.decode(unb64(j.content.replace(/\n/g,"")))),sha:j.sha}
+}
+
+async function save(msg){
+  if(!editing()){toast("التعديل لحامد فقط");return false}
+  try{
+    var box=await seal(state.data,state.pw);
+    var body={message:msg||"تحديث الحسابات",content:utf8b64(JSON.stringify(box)),branch:BRANCH};
+    if(state.sha)body.sha=state.sha;
+    var r=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+PATH,{method:"PUT",headers:{"Accept":"application/vnd.github+json","Authorization":"Bearer "+token(),"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(r.status===409||r.status===422){var cur=await fetchBox();state.sha=cur&&cur.sha;toast("تحدّثت البيانات من جهاز آخر، أعد المحاولة");await reload();return false}
+    if(r.status===401||r.status===403){toast("التوكن غير صالح");return false}
+    if(!r.ok){toast("تعذّر الحفظ");return false}
+    var j=await r.json();state.sha=j.content.sha;toast("تم الحفظ ✓");return true
+  }catch(e){toast("تعذّر الحفظ، تحقق من الإنترنت");return false}
+}
+
+async function reload(){var cur=await fetchBox();if(cur){state.data=await open_(cur.box,state.pw);state.sha=cur.sha}render()}
+
+/* الحسابات */
+function orderTotals(o){var got=0,spent=0;(o.deposits||[]).forEach(function(d){got+=+d.amount||0});(o.expenses||[]).forEach(function(x){spent+=+x.amount||0});return {got:got,spent:spent,left:(+o.price||0)-got}}
+function partnerTotals(){var t={};PARTNERS.forEach(function(p){t[p]={got:0,paid:0}});state.data.orders.forEach(function(o){(o.deposits||[]).forEach(function(d){if(t[d.by])t[d.by].got+=+d.amount||0});(o.expenses||[]).forEach(function(x){if(t[x.by])t[x.by].paid+=+x.amount||0})});return t}
+
+function render(){
+  $("mode").textContent=editing()?"تعديل":"مشاهدة";
+  $("editOff").classList.toggle("hidden",editing());$("editOnBox").classList.toggle("hidden",!editing());
+  $("tabSum").className=state.tab==="sum"?"sel":"ghost";$("tabOrders").className=state.tab==="orders"?"sel":"ghost";
+  $("view").innerHTML=state.open?orderView(state.open):(state.tab==="sum"?sumView():ordersView());
+}
+
+function sumView(){
+  var t=partnerTotals(),allGot=0,allPaid=0,allLeft=0;
+  state.data.orders.forEach(function(o){var x=orderTotals(o);allGot+=x.got;allPaid+=x.spent;if(!o.done)allLeft+=Math.max(0,x.left)});
+  var h='<div class="card total"><div class="row"><span>مجموع المستلم من الزبائن</span><span class="num">'+money(allGot)+'</span></div><div class="row"><span>مجموع المصروف على الطلبيات</span><span class="num">'+money(allPaid)+'</span></div><div class="row"><span>الباقي على الزبائن (طلبيات مفتوحة)</span><span class="num">'+money(allLeft)+'</span></div><div class="muted">'+state.data.orders.length+' طلبية</div></div>';
+  h+='<div class="card"><h2>كل شريك</h2><p class="muted">«استلم» = فلوس زبائن وصلته. «دفع» = صرفها على الطلبيات. «الصافي معه» = المستلم ناقص المدفوع: موجب يعني عنده فلوس للشراكة، سالب يعني دفع من جيبه أكثر.</p><div class="grid2">';
+  PARTNERS.forEach(function(p){var x=t[p],net=x.got-x.paid;h+='<div class="partner"><b>'+esc(p)+'</b><div class="row"><span>استلم</span><span class="num in">'+money(x.got)+'</span></div><div class="row"><span>دفع</span><span class="num out">'+money(x.paid)+'</span></div><div class="row"><span>الصافي معه</span><span class="num '+(net<0?"out":"in")+'">'+money(net)+'</span></div></div>'});
+  return h+'</div></div>';
+}
+
+function ordersView(){
+  var h="";
+  if(editing())h+='<div class="card"><h2>طلبية جديدة</h2><label>اسم الزبون</label><input id="nName"><label>الطلبية (وصف قصير)</label><input id="nDesc"><div class="grid2"><div><label>السعر المتفق عليه (د.ك)</label><input id="nPrice" type="number" inputmode="decimal" step="0.001"></div><div><label>التاريخ</label><input id="nDate" type="date" value="'+today()+'"></div></div><label>رقم الزبون (اختياري)</label><input id="nPhone" inputmode="tel"><div class="actions"><button id="nAdd">إضافة الطلبية</button></div></div>';
+  if(!state.data.orders.length)return h+'<div class="card muted center">لا توجد طلبيات بعد.</div>';
+  var list=state.data.orders.slice().sort(function(a,b){return (a.done-b.done)||String(b.date).localeCompare(a.date)});
+  list.forEach(function(o){var x=orderTotals(o);h+='<div class="card order" data-open="'+o.id+'"><div class="top"><b>'+esc(o.customer)+'</b><span class="muted">'+esc(o.date||"")+'</span></div><div class="muted">'+esc(o.desc||"")+'</div><div class="chips"><span class="chip">السعر '+money(o.price)+'</span><span class="chip">مستلم '+money(x.got)+'</span><span class="chip">مصروف '+money(x.spent)+'</span>'+(o.done?'<span class="chip done">منتهية</span>':'<span class="chip">الباقي '+money(x.left)+'</span>')+'</div></div>'});
+  return h;
+}
+
+function opts(){return PARTNERS.map(function(p){return '<option>'+esc(p)+'</option>'}).join("")}
+
+function orderView(id){
+  var o=state.data.orders.find(function(z){return z.id===id});if(!o){state.open=null;return ordersView()}
+  var x=orderTotals(o),E=editing();
+  var h='<div class="actions" style="margin:0 0 10px"><button class="ghost small" id="back">→ رجوع للطلبيات</button></div>';
+  h+='<div class="card"><div class="top" style="display:flex;justify-content:space-between"><h2>'+esc(o.customer)+'</h2><span class="muted">'+esc(o.date||"")+'</span></div><div>'+esc(o.desc||"")+'</div>'+(o.phone?'<div class="muted">📞 <span class="num">'+esc(o.phone)+'</span></div>':'')+'<div class="chips"><span class="chip">السعر '+money(o.price)+'</span><span class="chip">مستلم '+money(x.got)+'</span><span class="chip">مصروف '+money(x.spent)+'</span><span class="chip">الباقي على الزبون '+money(x.left)+'</span><span class="chip">المستلم ناقص المصروف '+money(x.got-x.spent)+'</span></div>';
+  if(E)h+='<div class="actions"><button class="ghost small" id="toggleDone">'+(o.done?"إرجاعها مفتوحة":"تمت الطلبية ✓")+'</button><button class="danger" id="delOrder">حذف الطلبية</button></div>';
+  h+='</div>';
+  h+='<div class="card"><h3>💰 العربون والدفعات من الزبون</h3>';
+  if((o.deposits||[]).length){h+='<table><tr><th>التاريخ</th><th>المبلغ</th><th>من استلم</th><th>ملاحظة</th>'+(E?'<th></th>':'')+'</tr>';o.deposits.forEach(function(d){h+='<tr><td>'+esc(d.date)+'</td><td class="num in">'+money(d.amount)+'</td><td>'+esc(d.by)+'</td><td>'+esc(d.note||"")+'</td>'+(E?'<td><button class="danger" data-deld="'+d.id+'">حذف</button></td>':'')+'</tr>'});h+='</table>'}else h+='<p class="muted">لا شيء بعد.</p>';
+  if(E)h+='<div class="form"><div class="grid2"><div><label>المبلغ (د.ك)</label><input id="dAmt" type="number" inputmode="decimal" step="0.001"></div><div><label>من استلمه</label><select id="dBy">'+opts()+'</select></div></div><div class="grid2"><div><label>النوع</label><select id="dNote"><option>عربون</option><option>دفعة</option><option>باقي المبلغ</option></select></div><div><label>التاريخ</label><input id="dDate" type="date" value="'+today()+'"></div></div><div class="actions"><button id="dAdd">إضافة</button></div></div>';
+  h+='</div>';
+  h+='<div class="card"><h3>🧾 المصروفات على الطلبية</h3>';
+  if((o.expenses||[]).length){h+='<table><tr><th>التاريخ</th><th>المبلغ</th><th>من دفع</th><th>السبب</th>'+(E?'<th></th>':'')+'</tr>';o.expenses.forEach(function(d){h+='<tr><td>'+esc(d.date)+'</td><td class="num out">'+money(d.amount)+'</td><td>'+esc(d.by)+'</td><td>'+esc(d.reason||"")+'</td>'+(E?'<td><button class="danger" data-dele="'+d.id+'">حذف</button></td>':'')+'</tr>'});h+='</table>'}else h+='<p class="muted">لا شيء بعد.</p>';
+  if(E)h+='<div class="form"><div class="grid2"><div><label>المبلغ (د.ك)</label><input id="eAmt" type="number" inputmode="decimal" step="0.001"></div><div><label>من دفع</label><select id="eBy">'+opts()+'</select></div></div><label>لماذا دفعها</label><input id="eWhy" placeholder="مثال: قماش، إسفنج، أجرة نقل، أجرة عامل"><label>التاريخ</label><input id="eDate" type="date" value="'+today()+'"><div class="actions"><button id="eAdd">إضافة</button></div></div>';
+  h+='</div>';
+  h+='<div class="card"><h3>حسب الشريك في هذه الطلبية</h3><table><tr><th>الشريك</th><th>استلم</th><th>دفع</th></tr>';
+  PARTNERS.forEach(function(p){var g=0,pd=0;(o.deposits||[]).forEach(function(d){if(d.by===p)g+=+d.amount||0});(o.expenses||[]).forEach(function(d){if(d.by===p)pd+=+d.amount||0});if(g||pd)h+='<tr><td>'+esc(p)+'</td><td class="num in">'+money(g)+'</td><td class="num out">'+money(pd)+'</td></tr>'});
+  return h+'</table></div>';
+}
+
+function val(id){var e=$(id);return e?e.value.trim():""}
+
+document.addEventListener("click",async function(ev){
+  var t=ev.target.closest("button,[data-open]");if(!t)return;
+  if(t.id==="tabSum"){state.tab="sum";state.open=null;return render()}
+  if(t.id==="tabOrders"){state.tab="orders";state.open=null;return render()}
+  if(t.dataset.open){state.open=t.dataset.open;render();return scrollTo(0,0)}
+  if(t.id==="back"){state.open=null;return render()}
+  if(t.id==="editOn"){var k=prompt("الصق توكن GitHub (مرة واحدة على هذا الجهاز):");if(k){try{localStorage.setItem("hesab_token",k.trim())}catch(e){}await reload();toast("وضع التعديل مفعّل")}return}
+  if(t.id==="editOut"){try{localStorage.removeItem("hesab_token")}catch(e){}return render()}
+  if(!editing())return;
+  var o=state.open&&state.data.orders.find(function(z){return z.id===state.open});
+  if(t.id==="nAdd"){var c=val("nName");if(!c)return toast("اكتب اسم الزبون");var no={id:uid(),customer:c,desc:val("nDesc"),price:+val("nPrice")||0,date:val("nDate")||today(),phone:val("nPhone"),done:false,deposits:[],expenses:[]};state.data.orders.push(no);t.disabled=true;if(await save("طلبية: "+c)){state.open=no.id}else{state.data.orders.pop()}return render()}
+  if(t.id==="dAdd"&&o){var a=+val("dAmt");if(!a)return toast("اكتب المبلغ");var d={id:uid(),amount:a,by:val("dBy"),note:val("dNote"),date:val("dDate")||today()};o.deposits.push(d);t.disabled=true;if(!await save("عربون: "+o.customer))o.deposits.pop();return render()}
+  if(t.id==="eAdd"&&o){var b=+val("eAmt");if(!b)return toast("اكتب المبلغ");if(!val("eWhy"))return toast("اكتب سبب الدفع");var e={id:uid(),amount:b,by:val("eBy"),reason:val("eWhy"),date:val("eDate")||today()};o.expenses.push(e);t.disabled=true;if(!await save("مصروف: "+o.customer))o.expenses.pop();return render()}
+  if(t.dataset.deld&&o){if(!confirm("حذف هذا المبلغ؟"))return;var bk=o.deposits;o.deposits=bk.filter(function(z){return z.id!==t.dataset.deld});if(!await save("حذف عربون"))o.deposits=bk;return render()}
+  if(t.dataset.dele&&o){if(!confirm("حذف هذا المصروف؟"))return;var bk2=o.expenses;o.expenses=bk2.filter(function(z){return z.id!==t.dataset.dele});if(!await save("حذف مصروف"))o.expenses=bk2;return render()}
+  if(t.id==="toggleDone"&&o){o.done=!o.done;if(!await save("حالة طلبية"))o.done=!o.done;return render()}
+  if(t.id==="delOrder"&&o){if(!confirm("حذف الطلبية بكل مبالغها؟"))return;var all=state.data.orders;state.data.orders=all.filter(function(z){return z.id!==o.id});if(await save("حذف طلبية")){state.open=null}else state.data.orders=all;return render()}
+});
+
+async function unlock(){
+  var pw=$("pw").value;if(!pw)return;$("openBtn").disabled=true;$("lockMsg").textContent="جاري الفتح…";
+  try{
+    var cur=await fetchBox();
+    if(!cur){
+      if(!editing()){var k=prompt("لا توجد بيانات بعد. لإنشائها الصق توكن GitHub:");if(!k)throw new Error("none");localStorage.setItem("hesab_token",k.trim())}
+      if(pw.length<8){$("lockMsg").textContent="كلمة السر الجديدة 8 أحرف على الأقل.";$("openBtn").disabled=false;return}
+      state.pw=pw;state.data={orders:[]};if(!await save("إنشاء الحسابات"))throw new Error("save");
+    }else{state.data=await open_(cur.box,pw);state.sha=cur.sha;state.pw=pw}
+    $("lock").classList.add("hidden");$("app").classList.remove("hidden");render();
+  }catch(e){$("lockMsg").textContent=(e&&e.name==="OperationError")?"كلمة السر غير صحيحة.":"تعذّر الفتح، تحقق من الإنترنت.";$("openBtn").disabled=false}
+}
+$("openBtn").addEventListener("click",unlock);
+$("pw").addEventListener("keydown",function(e){if(e.key==="Enter")unlock()});
+})();
+</script>
+</body>
+</html>
