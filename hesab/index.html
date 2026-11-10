@@ -77,7 +77,48 @@ function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 
 function load(){try{var j=localStorage.getItem(KEY);if(j)return JSON.parse(j);var old=localStorage.getItem("hesab_data_v1");return old?JSON.parse(old):{orders:[]}}catch(e){return {orders:[]}}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(state.data));if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();toast("تم الحفظ ✓");return true}catch(e){toast("تعذّر الحفظ");return false}}
+function save(){try{state.data.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state.data));if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();toast(gh()?"تم الحفظ ✓ (يُرفع على GitHub)":"تم الحفظ ✓");schedulePush();return true}catch(e){toast("تعذّر الحفظ");return false}}
+
+/* ===== الحفظ على GitHub (مستودع خاص). التوكن يُدخل مرة واحدة ويُحفظ في هذا الجهاز ===== */
+var GHK="hesab_github",FILE="hesab-data.json",ghSha=null,pushT=null,syncMsg="";
+function gh(){try{var g=JSON.parse(localStorage.getItem(GHK)||"null");return g&&g.repo&&g.token?g:null}catch(e){return null}}
+function b64u(str){return btoa(unescape(encodeURIComponent(str)))}
+function unb64u(b){return decodeURIComponent(escape(atob(b.replace(/\n/g,""))))}
+async function ghReq(method,body){var g=gh();var r=await fetch("https://api.github.com/repos/"+g.repo+"/contents/"+FILE+(method==="GET"?"?t="+Date.now():""),{method:method,cache:"no-store",headers:{"Accept":"application/vnd.github+json","Authorization":"Bearer "+g.token,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});return r}
+async function ghGet(){var r=await ghReq("GET");if(r.status===404){ghSha=null;return null}if(!r.ok)throw new Error(String(r.status));var j=await r.json();ghSha=j.sha;return JSON.parse(unb64u(j.content))}
+function setSync(t){syncMsg=t;var e=$("syncStatus");if(e)e.textContent=t}
+function schedulePush(){if(!gh())return;clearTimeout(pushT);setSync("⏳ جاري الرفع…");pushT=setTimeout(push,1200)}
+async function push(retry){
+  if(!gh())return;if(!navigator.onLine){setSync("⚠️ لا يوجد إنترنت — سيُرفع عند الاتصال");return}
+  try{
+    if(ghSha===null){try{await ghGet()}catch(e){}}
+    var body={message:"تحديث الحسابات "+new Date().toLocaleString("en-GB"),content:b64u(JSON.stringify(state.data,null,1))};if(ghSha)body.sha=ghSha;
+    var r=await ghReq("PUT",body);
+    if((r.status===409||r.status===422)&&!retry){ghSha=null;return push(true)}
+    if(r.status===401||r.status===403){setSync("⚠️ التوكن غير صالح أو بدون صلاحية كتابة");return}
+    if(r.status===404){setSync("⚠️ المستودع غير موجود أو التوكن لا يصل إليه");return}
+    if(!r.ok){setSync("⚠️ تعذّر الرفع ("+r.status+")");return}
+    var j=await r.json();ghSha=j.content.sha;localStorage.setItem(GHK+"_last",new Date().toISOString());setSync("✅ محفوظ على GitHub — "+new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}));
+  }catch(e){setSync("⚠️ تعذّر الرفع، سأحاول عند الحفظ القادم")}
+}
+window.addEventListener("online",function(){if(gh())schedulePush()});
+async function connectGH(){
+  var cur=gh()||{};var repo=prompt("اسم المستودع الخاص (الحساب/الاسم):",cur.repo||"mazuna-kw/hesab-data");if(!repo)return;repo=repo.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\/$/,"");
+  var token=prompt("الصق توكن GitHub (مرة واحدة فقط على هذا الجهاز):");if(!token)return;
+  try{localStorage.setItem(GHK,JSON.stringify({repo:repo,token:token.trim()}))}catch(e){}
+  setSync("⏳ جاري الاتصال…");render();
+  try{var remote=await ghGet();
+    if(remote&&Array.isArray(remote.orders)&&remote.orders.length&&!state.data.orders.length){state.data=remote;localStorage.setItem(KEY,JSON.stringify(remote));toast("تم استرجاع الحسابات من GitHub");render()}
+    else if(remote&&remote.orders&&remote.orders.length&&state.data.orders.length&&confirm("على GitHub نسخة فيها "+remote.orders.length+" طلبية. استبدال بيانات هذا الجهاز بها؟\n(إلغاء = رفع بيانات هذا الجهاز فوقها)")){state.data=remote;localStorage.setItem(KEY,JSON.stringify(remote));render();setSync("✅ متصل — تم الاسترجاع");return}
+    await push();
+  }catch(e){setSync(e.message==="401"||e.message==="403"?"⚠️ التوكن غير صالح":"⚠️ تعذّر الاتصال بالمستودع")}
+}
+async function pullGH(){if(!gh())return;try{var remote=await ghGet();if(!remote)return toast("لا توجد نسخة على GitHub بعد");if(!confirm("استبدال بيانات هذا الجهاز بنسخة GitHub ("+remote.orders.length+" طلبية)؟"))return;state.data=remote;localStorage.setItem(KEY,JSON.stringify(remote));state.open=null;render();toast("تم الاسترجاع من GitHub")}catch(e){toast("تعذّر الاسترجاع")}}
+function syncCard(){
+  var g=gh();
+  if(!g)return '<div class="card"><h2>☁️ الحفظ على GitHub</h2><p class="muted">اربط مستودعاً خاصاً مرة واحدة، وبعدها كل تعديل يُرفع تلقائياً، وتقدر تسترجع الحسابات على أي جهاز.</p><div class="actions"><button id="ghConnect" style="flex:1">ربط GitHub</button></div></div>';
+  return '<div class="card"><h2>☁️ الحفظ على GitHub</h2><p class="muted">مربوط بـ <b class="num">'+esc(g.repo)+'</b></p><p id="syncStatus" style="margin:6px 0">'+esc(syncMsg||"✅ مربوط")+'</p><div class="actions"><button class="ghost small" id="ghPush">رفع الآن</button><button class="ghost small" id="ghPull">استرجاع من GitHub</button><a class="ghost small" style="text-decoration:none;border:1px solid var(--brand);border-radius:10px;padding:6px 10px;color:var(--brand)" target="_blank" rel="noopener" href="https://github.com/'+esc(g.repo)+'/blob/HEAD/'+FILE+'">فتح على GitHub</a><button class="danger" id="ghOff">إلغاء الربط</button></div></div>';
+}
 
 function myOrders(){return state.data.orders.filter(function(o){return o.partner===state.partner})}
 function people(){return [ME,state.partner]}
@@ -127,7 +168,8 @@ function pickView(){
   var h='<div class="card"><h2>اختر الشريك</h2>';
   PARTNERS.forEach(function(p){var n=state.data.orders.filter(function(o){return o.partner===p}).length;h+='<label class="pick'+(state.pick===p?" on":"")+'" data-pick="'+esc(p)+'"><input type="radio" name="p"'+(state.pick===p?" checked":"")+'><span style="flex:1">'+esc(p)+'</span><span class="muted">'+n+' طلبية</span></label>'});
   h+='<button class="big" id="ok"'+(state.pick?"":" disabled style=\"opacity:.5\"")+'>موافق</button></div>';
-  h+='<div class="card"><h2>النسخ الاحتياطي</h2><p class="muted">البيانات محفوظة في هذا الجهاز فقط. خذ نسخة بين فترة وأخرى.</p><div class="actions"><button class="ghost small" id="exp">حفظ نسخة احتياطية</button><button class="ghost small" id="impBtn">استرجاع نسخة</button></div></div>';
+  h+=syncCard();
+  h+='<div class="card"><h2>النسخ الاحتياطي</h2><p class="muted">نسخة ملف تحفظها بنفسك (إضافة لـ GitHub).</p><div class="actions"><button class="ghost small" id="exp">حفظ نسخة احتياطية</button><button class="ghost small" id="impBtn">استرجاع نسخة</button></div></div>';
   return h;
 }
 
@@ -245,6 +287,10 @@ document.addEventListener("click",function(ev){
   if(t.id==="ok"&&state.pick){state.partner=state.pick;state.open=null;render();return scrollTo(0,0)}
   if(t.id==="switch"){state.partner=null;state.open=null;state.edit=null;return render()}
   if(t.id==="exp"){var b=new Blob([JSON.stringify(state.data,null,1)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="hesab-"+today()+".json";document.body.appendChild(a);a.click();a.remove();return}
+  if(t.id==="ghConnect")return connectGH();
+  if(t.id==="ghPush")return push();
+  if(t.id==="ghPull")return pullGH();
+  if(t.id==="ghOff"){if(confirm("إلغاء ربط GitHub من هذا الجهاز؟ (البيانات تبقى)")){localStorage.removeItem(GHK);syncMsg="";render()}return}
   if(t.id==="impBtn")return $("imp").click();
   if(t.id==="pdf")return sendPDF();
   if(t.dataset.open){state.open=t.dataset.open;state.edit=null;render();return scrollTo(0,0)}
@@ -266,6 +312,7 @@ document.addEventListener("click",function(ev){
 $("imp").addEventListener("change",function(){var f=this.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(!d||!Array.isArray(d.orders))throw 0;if(!confirm("استبدال البيانات الحالية بالنسخة ("+d.orders.length+" طلبية)؟"))return;state.data=d;save();render()}catch(e){toast("الملف غير صالح")}};r.readAsText(f);this.value=""});
 
 state.data=load();render();
+if(gh()){if(!state.data.orders.length){ghGet().then(function(r){if(r&&r.orders&&r.orders.length){state.data=r;localStorage.setItem(KEY,JSON.stringify(r));render();toast("تم استرجاع الحسابات من GitHub")}}).catch(function(){})}else{var lu=localStorage.getItem(GHK+"_last")||"";if(!lu||lu<(state.data.updatedAt||""))schedulePush()}}
 if("serviceWorker" in navigator)window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});
 })();
 </script>
