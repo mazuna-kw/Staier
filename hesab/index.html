@@ -96,7 +96,7 @@ function settleText(r){
   return Math.abs(a)<E?"الحساب متساوي، لا أحد عليه شيء":(a>0?ps[1]+" يدفع لـ "+ps[0]+" "+money(a):ps[0]+" يدفع لـ "+ps[1]+" "+money(-a));
 }
 function settleHTML(list,title){
-  var r=settle(list),ps=people(),h='<div class="card"><h2>'+title+'</h2><div class="row"><span>سعر الطلبيات كامل</span><span class="num">'+money(r.price)+'</span></div><div class="row"><span>المصروفات</span><span class="num">'+money(r.spent)+'</span></div><div class="row" style="font-size:15px"><span>صافي الربح</span><span class="num '+(r.profit<0?"out":"in")+'">'+money(r.profit)+'</span></div>'+(r.left>0.0005?'<div class="row"><span>الباقي على الزبون</span><span class="num">'+money(r.left)+'</span></div>':'')+'<p class="muted">القسمة 50% × 50% على المبلغ الكامل.</p><div class="grid2">';
+  var r=settle(list),ps=people(),h='<div class="card"><h2>'+title+'</h2><div class="row"><span>'+(list.length===1?'سعر الطلبية':'سعر الطلبيات كامل')+'</span><span class="num">'+money(r.price)+'</span></div><div class="row"><span>المصروفات</span><span class="num">'+money(r.spent)+'</span></div><div class="row" style="font-size:15px"><span>صافي الربح</span><span class="num '+(r.profit<0?"out":"in")+'">'+money(r.profit)+'</span></div>'+(r.left>0.0005?'<div class="row"><span>الباقي على الزبون</span><span class="num">'+money(r.left)+'</span></div>':'')+'<p class="muted">القسمة 50% × 50% على المبلغ الكامل.</p><div class="grid2">';
   ps.forEach(function(p){var x=r.t[p];h+='<div class="box"><b>'+esc(p)+'</b><div class="row"><span>استلم</span><span class="num">'+money(x.got)+'</span></div><div class="row"><span>دفع</span><span class="num">'+money(x.paid)+'</span></div><div class="row"><span>نصيبه من الربح</span><span class="num">'+money(x.share)+'</span></div><div class="row" style="font-size:15px;border-top:1px solid var(--line);margin-top:6px;padding-top:6px"><span>'+(x.due>=0?"باقي له":"عليه")+'</span><span class="num '+(x.due>=0?"in":"out")+'">'+money(Math.abs(x.due))+'</span></div></div>'});
   return h+'</div><div class="box" style="margin-top:10px;text-align:center;background:#1f3a5f;color:#fff"><b>'+esc(settleText(r))+'</b></div></div>'}
 
@@ -105,11 +105,12 @@ function settleHTML(list,title){
 function ledger(list,p){var got=[],paid=[];list.forEach(function(o){var on=o.customer+(o.desc?" — "+o.desc:"");(o.deposits||[]).forEach(function(d){if(d.by===p)got.push({date:d.date,order:on,what:(d.note||"دفعة")+" من الزبون",amount:+d.amount||0})});(o.expenses||[]).forEach(function(d){if(d.by===p)paid.push({date:d.date,order:on,what:(d.reason||"")+(d.to?" — لـ "+d.to:""),amount:+d.amount||0})})});function srt(a,b){return String(a.date).localeCompare(b.date)}return {got:got.sort(srt),paid:paid.sort(srt)}}
 function sd(d){var m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?(+m[3])+'/'+(+m[2]):d}
 function ledgerHTML(list){
+  var one=list.length===1,oc=function(r){return one?'':'<td>'+esc(r.order)+'</td>'},oh=one?'':'<th>الطلبية</th>';
   var h='<div class="card"><h2>تفاصيل كل شخص</h2>';
   people().forEach(function(p){var L=ledger(list,p),tg=0,tp=0;L.got.forEach(function(r){tg+=r.amount});L.paid.forEach(function(r){tp+=r.amount});
     h+='<details open style="margin-bottom:12px"><summary style="font-weight:700;font-size:16px;color:var(--brand);cursor:pointer">'+esc(p)+' — استلم '+money(tg)+' • دفع '+money(tp)+'</summary>';
-    h+='<h3>استلم من الزبائن</h3>'+(L.got.length?'<table><tr><th>التاريخ</th><th>الطلبية</th><th>البيان</th><th>المبلغ</th></tr>'+L.got.map(function(r){return '<tr><td class="d">'+esc(sd(r.date))+'</td><td>'+esc(r.order)+'</td><td>'+esc(r.what)+'</td><td class="num in">'+money(r.amount)+'</td></tr>'}).join("")+'<tr><th colspan="3">المجموع</th><th class="num in">'+money(tg)+'</th></tr></table>':'<p class="muted">لا شيء.</p>');
-    h+='<h3>دفع</h3>'+(L.paid.length?'<table><tr><th>التاريخ</th><th>الطلبية</th><th>لماذا / لمن</th><th>المبلغ</th></tr>'+L.paid.map(function(r){return '<tr><td class="d">'+esc(sd(r.date))+'</td><td>'+esc(r.order)+'</td><td>'+esc(r.what)+'</td><td class="num out">'+money(r.amount)+'</td></tr>'}).join("")+'<tr><th colspan="3">المجموع</th><th class="num out">'+money(tp)+'</th></tr></table>':'<p class="muted">لا شيء.</p>');
+    h+='<h3>استلم من الزبائن</h3>'+(L.got.length?'<table><tr><th>التاريخ</th>'+oh+'<th>البيان</th><th>المبلغ</th></tr>'+L.got.map(function(r){return '<tr><td class="d">'+esc(sd(r.date))+'</td>'+oc(r)+'<td>'+esc(r.what)+'</td><td class="num in">'+money(r.amount)+'</td></tr>'}).join("")+'<tr><th colspan="'+(one?2:3)+'">المجموع</th><th class="num in">'+money(tg)+'</th></tr></table>':'<p class="muted">لا شيء.</p>');
+    h+='<h3>دفع</h3>'+(L.paid.length?'<table><tr><th>التاريخ</th>'+oh+'<th>لماذا / لمن</th><th>المبلغ</th></tr>'+L.paid.map(function(r){return '<tr><td class="d">'+esc(sd(r.date))+'</td>'+oc(r)+'<td>'+esc(r.what)+'</td><td class="num out">'+money(r.amount)+'</td></tr>'}).join("")+'<tr><th colspan="'+(one?2:3)+'">المجموع</th><th class="num out">'+money(tp)+'</th></tr></table>':'<p class="muted">لا شيء.</p>');
     h+='</details>'});
   return h+'</div>';
 }
@@ -139,9 +140,6 @@ function partnerView(){
   if(!list.length)h+='<div class="card muted" style="text-align:center">لا توجد طلبيات مع '+esc(state.partner)+' بعد.</div>';
   list.slice().sort(function(a,b){return (a.done-b.done)||String(b.date).localeCompare(a.date)}).forEach(function(o){var x=ot(o);h+='<div class="card order" data-open="'+o.id+'"><div class="top"><b>'+esc(o.customer)+'</b><span class="muted">'+esc(o.date||"")+'</span></div><div class="muted">'+esc(o.desc||"")+'</div><div class="chips"><span class="chip">السعر '+money(o.price)+'</span><span class="chip">مستلم '+money(x.got)+'</span><span class="chip">مصروف '+money(x.spent)+'</span>'+(o.done?'<span class="chip done">منتهية</span>':'<span class="chip">الباقي '+money(x.left)+'</span>')+'</div></div>'});
   h+='<div class="card total"><div class="row"><span>المستلم من الزبائن</span><span class="num">'+money(G)+'</span></div><div class="row"><span>المصروف على الطلبيات</span><span class="num">'+money(S)+'</span></div><div class="row"><span>المستلم ناقص المصروف</span><span class="num">'+money(G-S)+'</span></div><div class="row"><span>الباقي على الزبائن</span><span class="num">'+money(L)+'</span></div><div class="muted">'+list.length+' طلبية</div></div>';
-  h+=ledgerHTML(list);
-  h+=settleHTML(list,'الحساب بيننا (كل الطلبيات)').replace(/<\/div>$/,'');
-  h+='<div class="actions"><button id="pdf" style="flex:1">📄 إرسال الملخص PDF لـ '+esc(state.partner)+'</button></div></div>';
   return h;
 }
 
@@ -166,14 +164,14 @@ function orderView(id){
   h+='<div class="card"><h3>🧾 المصروفات على الطلبية</h3>';
   if((o.expenses||[]).length){h+='<table><tr><th>التاريخ</th><th>المبلغ</th><th>من دفع</th><th>السبب / لمن</th><th></th></tr>';o.expenses.forEach(function(d){h+='<tr'+(eE&&eE.id===d.id?' style="background:#fff7e0"':'')+'><td class="d">'+esc(sd(d.date))+'</td><td class="num out">'+money(d.amount)+'</td><td>'+esc(d.by)+'</td><td>'+esc(d.reason||"")+(d.to?'<div class="muted">لـ '+esc(d.to)+'</div>':'')+'</td><td style="white-space:nowrap"><button class="ghost small" data-edite="'+d.id+'">تعديل</button> <button class="danger" data-dele="'+d.id+'">حذف</button></td></tr>'});h+='</table>'}else h+='<p class="muted">لا شيء بعد.</p>';
   h+='<div class="form">'+(eE?'<b>تعديل المصروف المحدد</b>':'')+'<div class="grid2"><div><label>المبلغ (د.ك)</label><input id="eAmt" type="number" inputmode="decimal" step="0.001" value="'+(eE?esc(eE.amount):"")+'"></div><div><label>من دفع</label><select id="eBy">'+sel(people(),eE&&eE.by)+'</select></div></div><label>لماذا دفعها</label><input id="eWhy" value="'+(eE?esc(eE.reason||""):"")+'"><label>دفعها لمن (اختياري)</label><input id="eTo" placeholder="محل، عامل، سائق…" value="'+(eE?esc(eE.to||""):"")+'"><label>التاريخ</label><input id="eDate" type="date" value="'+(eE?esc(eE.date):today())+'"><div class="actions"><button id="eAdd">'+(eE?"حفظ التعديل":"إضافة")+'</button>'+(eE?'<button class="ghost" id="cancelEdit">إلغاء</button>':'')+'</div></div></div>';
-  h+=settleHTML([o],'حساب هذه الطلبية');
+  if(ed.type!=="order"){h+=ledgerHTML([o]);h+=settleHTML([o],'حساب هذه الطلبية').replace(/<\/div>$/,'')+'<div class="actions"><button id="pdf" style="flex:1">📄 إرسال ملخص الطلبية PDF</button></div></div>';}
   return h;
 }
 
 /* ملخص PDF: يُرسم على Canvas (يدعم العربية) ثم يُوضع في ملف PDF */
 function buildPages(){
-  var W=1240,H=1754,M=70,pages=[],c,ctx,y,CW=W-2*M;
-  var list=myOrders().slice().sort(function(a,b){return String(a.date).localeCompare(b.date)}),st=settle(list),ps=people();
+  var W=1240,H=8000,M=70,pages=[],c,ctx,y,CW=W-2*M;
+  var o=state.data.orders.find(function(z){return z.id===state.open}),list=[o],st=settle(list),ps=people();
   function page(){c=document.createElement("canvas");c.width=W;c.height=H;ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,W,H);ctx.direction="rtl";ctx.textBaseline="middle";pages.push(c);y=M}
   function font(s,b){ctx.font=(b?"bold ":"")+s+"px Tahoma, Arial, sans-serif"}
   function txt(s,x,size,bold,color,align){font(size,bold);ctx.fillStyle=color||"#1d2433";ctx.textAlign=align||"right";ctx.fillText(s,x,y)}
@@ -191,10 +189,10 @@ function buildPages(){
     y+=14;
   }
   page();
-  rect(0,0,W,180,"#1f3a5f");y=62;txt("كشف حساب: "+ME+" و"+state.partner,W-M,44,true,"#fff");y=122;txt("التاريخ: "+today()+"   •   "+list.length+" طلبية   •   القسمة 50% × 50% على المبلغ الكامل",W-M,22,false,"#d6deea");
+  rect(0,0,W,180,"#1f3a5f");y=62;txt(fit("طلبية: "+o.customer+(o.desc?" — "+o.desc:""),CW,40,true),W-M,40,true,"#fff");y=122;txt("الشريكان: "+ME+" و"+state.partner+"   •   تاريخ الطلبية "+(o.date||"")+"   •   القسمة 50% × 50%",W-M,22,false,"#d6deea");
   y=220;
   heading("الملخص");
-  [["سعر الطلبيات كامل",st.price],["المصروفات",st.spent],["صافي الربح",st.profit],["الباقي على الزبائن",st.left]].forEach(function(r,i){y+=22;txt(r[0],W-M-12,24,i===2);txt(money(r[1]),M+12,24,true,i===2?"#0f7b4f":"#1d2433","left");y+=24});
+  [["سعر الطلبية",st.price],["المصروفات",st.spent],["صافي الربح",st.profit],["الباقي على الزبون",st.left]].forEach(function(r,i){y+=22;txt(r[0],W-M-12,24,i===2);txt(money(r[1]),M+12,24,true,i===2?"#0f7b4f":"#1d2433","left");y+=24});
   y+=16;
   table([{t:"",w:.28},{t:"استلم",w:.18},{t:"دفع",w:.18},{t:"نصيبه",w:.18},{t:"باقي له / عليه",w:.18}],ps.map(function(p){var x=st.t[p];return [p,money(x.got),money(x.paid),money(x.share),(x.due>=0?"له ":"عليه ")+money(Math.abs(x.due))]}),null,"#1f3a5f");
   var stx=settleText(st);font(26,true);var lines=[],cur="";stx.split(" ").forEach(function(w0){var tr=cur?cur+" "+w0:w0;if(ctx.measureText(tr).width>CW-40&&cur){lines.push(cur);cur=w0}else cur=tr});lines.push(cur);
@@ -203,15 +201,14 @@ function buildPages(){
     var L=ledger(list,p),tg=0,tp=0;L.got.forEach(function(r){tg+=r.amount});L.paid.forEach(function(r){tp+=r.amount});
     heading("تفاصيل "+p);
     need(170);y+=14;txt("ما استلمه من الزبائن",W-M,24,true,"#0f7b4f");y+=34;
-    if(L.got.length)table([{t:"التاريخ",w:.17},{t:"الطلبية",w:.36},{t:"البيان",w:.27},{t:"المبلغ",w:.20}],L.got.map(function(r){return [r.date,r.order,r.what,money(r.amount)]}),tg,"#0f7b4f");else{txt("لا شيء",W-M-12,21,false,"#6b7385");y+=40}
+    if(L.got.length)table([{t:"التاريخ",w:.2},{t:"البيان",w:.55},{t:"المبلغ",w:.25}],L.got.map(function(r){return [r.date,r.what,money(r.amount)]}),tg,"#0f7b4f");else{txt("لا شيء",W-M-12,21,false,"#6b7385");y+=40}
     need(170);txt("ما دفعه",W-M,24,true,"#b3261e");y+=34;
-    if(L.paid.length)table([{t:"التاريخ",w:.17},{t:"الطلبية",w:.33},{t:"لماذا / لمن",w:.30},{t:"المبلغ",w:.20}],L.paid.map(function(r){return [r.date,r.order,r.what,money(r.amount)]}),tp,"#b3261e");else{txt("لا شيء",W-M-12,21,false,"#6b7385");y+=40}
+    if(L.paid.length)table([{t:"التاريخ",w:.2},{t:"لماذا / لمن",w:.55},{t:"المبلغ",w:.25}],L.paid.map(function(r){return [r.date,r.what,money(r.amount)]}),tp,"#b3261e");else{txt("لا شيء",W-M-12,21,false,"#6b7385");y+=40}
     var x=st.t[p];need(50);y+=10;txt("نصيبه من الربح "+money(x.share)+"   •   "+(x.due>=0?"باقي له ":"عليه ")+money(Math.abs(x.due)),W-M,24,true,"#1f3a5f");y+=50;
   });
-  heading("الطلبيات");
-  table([{t:"التاريخ",w:.15},{t:"الزبون / الطلبية",w:.33},{t:"السعر",w:.13},{t:"مستلم",w:.13},{t:"مصروف",w:.13},{t:"الباقي",w:.13}],list.map(function(o){var q=ot(o);return [o.date||"",o.customer+(o.desc?" — "+o.desc:""),money(o.price),money(q.got),money(q.spent),o.done?"منتهية":money(q.left)]}),null,"#1d2433");
-  pages.forEach(function(pg,i){var cx=pg.getContext("2d");cx.font="18px Tahoma, Arial";cx.fillStyle="#6b7385";cx.textAlign="center";cx.textBaseline="middle";cx.fillText((i+1)+" / "+pages.length,W/2,H-40)});
-  return pages;
+  /* صفحة واحدة بطول المحتوى */
+  var fh=Math.max(Math.round(W*1.414),y+M),out=document.createElement("canvas");out.width=W;out.height=fh;var oc=out.getContext("2d");oc.fillStyle="#fff";oc.fillRect(0,0,W,fh);oc.drawImage(pages[0],0,0);
+  return [out];
 }
 function dataURLBytes(u){var b=atob(u.split(",")[1]),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
 function makePDF(canvases){
@@ -223,8 +220,8 @@ function makePDF(canvases){
   obj(1,["<< /Type /Catalog /Pages 2 0 R >>"]);
   obj(2,["<< /Type /Pages /Kids ["+kids.join(" ")+"] /Count "+n+" >>"]);
   canvases.forEach(function(cv,i){
-    var p=3+i*3,img=dataURLBytes(cv.toDataURL("image/jpeg",0.85)),cs="q 595 0 0 842 0 0 cm /Im0 Do Q";
-    obj(p,["<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 "+(p+1)+" 0 R >> >> /Contents "+(p+2)+" 0 R >>"]);
+    var p=3+i*3,ph=Math.round(595*cv.height/cv.width),img=dataURLBytes(cv.toDataURL("image/jpeg",0.85)),cs="q 595 0 0 "+ph+" 0 0 cm /Im0 Do Q";
+    obj(p,["<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 "+ph+"] /Resources << /XObject << /Im0 "+(p+1)+" 0 R >> >> /Contents "+(p+2)+" 0 R >>"]);
     obj(p+1,["<< /Type /XObject /Subtype /Image /Width "+cv.width+" /Height "+cv.height+" /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length "+img.length+" >>\nstream\n",img,"\nendstream"]);
     obj(p+2,["<< /Length "+cs.length+" >>\nstream\n"+cs+"\nendstream"]);
   });
@@ -234,9 +231,9 @@ function makePDF(canvases){
   return new Blob(parts,{type:"application/pdf"});
 }
 async function sendPDF(){
-  var blob=makePDF(buildPages()),name="كشف-حساب-"+state.partner.replace(/\s+/g,"-")+"-"+today()+".pdf";
+  var od=state.data.orders.find(function(z){return z.id===state.open});var blob=makePDF(buildPages()),name="طلبية-"+String(od.customer).replace(/[\s\/\\:*?"<>|]+/g,"-")+"-"+(od.date||today())+".pdf";
   var file=new File([blob],name,{type:"application/pdf"});
-  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:"كشف حساب "+state.partner});return}catch(e){if(e&&e.name==="AbortError")return}}
+  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:"ملخص طلبية "+od.customer});return}catch(e){if(e&&e.name==="AbortError")return}}
   var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();toast("تم تنزيل الملف، أرسله من واتساب");
 }
 
