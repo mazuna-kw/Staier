@@ -65,7 +65,7 @@ th{color:var(--muted);font-weight:600;font-size:12px}
 (function(){
 "use strict";
 var ME="حامد", PARTNERS=["نواف","عبدالله الحميد","أبو عبدالرحمن"], KEY="hesab_data_v2";
-var state={data:null,partner:null,pick:null,open:null};
+var state={data:null,partner:null,pick:null,open:null,edit:null};
 var $=function(id){return document.getElementById(id)};
 
 function toast(t){var e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(e._t);e._t=setTimeout(function(){e.style.display="none"},2600)}
@@ -131,17 +131,24 @@ function partnerView(){
 function opts(){return people().map(function(p){return '<option>'+esc(p)+'</option>'}).join("")}
 
 /* 3) تفاصيل الطلبية */
+function sel(list,v){return list.map(function(p){return '<option'+(p===v?' selected':'')+'>'+esc(p)+'</option>'}).join("")}
 function orderView(id){
   var o=state.data.orders.find(function(z){return z.id===id});if(!o){state.open=null;return partnerView()}
-  var x=ot(o);
+  var x=ot(o),ed=state.edit||{};
   var h='<div class="actions" style="margin:0 0 10px"><button class="ghost small" id="back">→ رجوع</button></div>';
-  h+='<div class="card"><div style="display:flex;justify-content:space-between"><h2>'+esc(o.customer)+'</h2><span class="muted">'+esc(o.date||"")+'</span></div><div>'+esc(o.desc||"")+'</div>'+(o.phone?'<div class="muted">📞 <span class="num">'+esc(o.phone)+'</span></div>':'')+'<div class="chips"><span class="chip">السعر '+money(o.price)+'</span><span class="chip">مستلم '+money(x.got)+'</span><span class="chip">مصروف '+money(x.spent)+'</span><span class="chip">الباقي على الزبون '+money(x.left)+'</span></div><div class="actions"><button class="ghost small" id="toggleDone">'+(o.done?"إرجاعها مفتوحة":"تمت الطلبية ✓")+'</button><button class="danger" id="delOrder">حذف الطلبية</button></div></div>';
+  if(ed.type==="order"){
+    h+='<div class="card"><h2>تعديل الطلبية</h2><label>اسم الزبون</label><input id="oName" value="'+esc(o.customer)+'"><label>الطلبية</label><input id="oDesc" value="'+esc(o.desc||"")+'"><div class="grid2"><div><label>السعر المتفق عليه (د.ك)</label><input id="oPrice" type="number" inputmode="decimal" step="0.001" value="'+esc(o.price)+'"></div><div><label>التاريخ</label><input id="oDate" type="date" value="'+esc(o.date||"")+'"></div></div><label>رقم الزبون</label><input id="oPhone" inputmode="tel" value="'+esc(o.phone||"")+'"><label>الشريك</label><select id="oPartner">'+sel(PARTNERS,o.partner)+'</select><div class="actions"><button id="oSave">حفظ التعديل</button><button class="ghost" id="cancelEdit">إلغاء</button></div></div>';
+  }else{
+    h+='<div class="card"><div style="display:flex;justify-content:space-between"><h2>'+esc(o.customer)+'</h2><span class="muted">'+esc(o.date||"")+'</span></div><div>'+esc(o.desc||"")+'</div>'+(o.phone?'<div class="muted">📞 <span class="num">'+esc(o.phone)+'</span></div>':'')+'<div class="chips"><span class="chip">السعر '+money(o.price)+'</span><span class="chip">مستلم '+money(x.got)+'</span><span class="chip">مصروف '+money(x.spent)+'</span><span class="chip">الباقي على الزبون '+money(x.left)+'</span></div><div class="actions"><button class="ghost small" id="editOrder">✏️ تعديل الطلبية</button><button class="ghost small" id="toggleDone">'+(o.done?"إرجاعها مفتوحة":"تمت الطلبية ✓")+'</button><button class="danger" id="delOrder">حذف الطلبية</button></div></div>';
+  }
+  var dE=ed.type==="dep"?o.deposits.find(function(z){return z.id===ed.id}):null;
   h+='<div class="card"><h3>💰 العربون والدفعات من الزبون</h3>';
-  if((o.deposits||[]).length){h+='<table><tr><th>التاريخ</th><th>المبلغ</th><th>من استلم</th><th>النوع</th><th></th></tr>';o.deposits.forEach(function(d){h+='<tr><td>'+esc(d.date)+'</td><td class="num in">'+money(d.amount)+'</td><td>'+esc(d.by)+'</td><td>'+esc(d.note||"")+'</td><td><button class="danger" data-deld="'+d.id+'">حذف</button></td></tr>'});h+='</table>'}else h+='<p class="muted">لا شيء بعد.</p>';
-  h+='<div class="form"><div class="grid2"><div><label>المبلغ (د.ك)</label><input id="dAmt" type="number" inputmode="decimal" step="0.001"></div><div><label>من استلمه</label><select id="dBy">'+opts()+'</select></div></div><div class="grid2"><div><label>النوع</label><select id="dNote"><option>عربون</option><option>دفعة</option><option>باقي المبلغ</option></select></div><div><label>التاريخ</label><input id="dDate" type="date" value="'+today()+'"></div></div><div class="actions"><button id="dAdd">إضافة</button></div></div></div>';
+  if((o.deposits||[]).length){h+='<table><tr><th>التاريخ</th><th>المبلغ</th><th>من استلم</th><th>النوع</th><th></th></tr>';o.deposits.forEach(function(d){h+='<tr'+(dE&&dE.id===d.id?' style="background:#fff7e0"':'')+'><td>'+esc(d.date)+'</td><td class="num in">'+money(d.amount)+'</td><td>'+esc(d.by)+'</td><td>'+esc(d.note||"")+'</td><td style="white-space:nowrap"><button class="ghost small" data-editd="'+d.id+'">تعديل</button> <button class="danger" data-deld="'+d.id+'">حذف</button></td></tr>'});h+='</table>'}else h+='<p class="muted">لا شيء بعد.</p>';
+  h+='<div class="form">'+(dE?'<b>تعديل المبلغ المحدد</b>':'')+'<div class="grid2"><div><label>المبلغ (د.ك)</label><input id="dAmt" type="number" inputmode="decimal" step="0.001" value="'+(dE?esc(dE.amount):"")+'"></div><div><label>من استلمه</label><select id="dBy">'+sel(people(),dE&&dE.by)+'</select></div></div><div class="grid2"><div><label>النوع</label><select id="dNote">'+sel(["عربون","دفعة","باقي المبلغ"],dE&&dE.note)+'</select></div><div><label>التاريخ</label><input id="dDate" type="date" value="'+(dE?esc(dE.date):today())+'"></div></div><div class="actions"><button id="dAdd">'+(dE?"حفظ التعديل":"إضافة")+'</button>'+(dE?'<button class="ghost" id="cancelEdit">إلغاء</button>':'')+'</div></div></div>';
+  var eE=ed.type==="exp"?o.expenses.find(function(z){return z.id===ed.id}):null;
   h+='<div class="card"><h3>🧾 المصروفات على الطلبية</h3>';
-  if((o.expenses||[]).length){h+='<table><tr><th>التاريخ</th><th>المبلغ</th><th>من دفع</th><th>السبب</th><th></th></tr>';o.expenses.forEach(function(d){h+='<tr><td>'+esc(d.date)+'</td><td class="num out">'+money(d.amount)+'</td><td>'+esc(d.by)+'</td><td>'+esc(d.reason||"")+'</td><td><button class="danger" data-dele="'+d.id+'">حذف</button></td></tr>'});h+='</table>'}else h+='<p class="muted">لا شيء بعد.</p>';
-  h+='<div class="form"><div class="grid2"><div><label>المبلغ (د.ك)</label><input id="eAmt" type="number" inputmode="decimal" step="0.001"></div><div><label>من دفع</label><select id="eBy">'+opts()+'</select></div></div><label>لماذا دفعها</label><input id="eWhy"><label>التاريخ</label><input id="eDate" type="date" value="'+today()+'"><div class="actions"><button id="eAdd">إضافة</button></div></div></div>';
+  if((o.expenses||[]).length){h+='<table><tr><th>التاريخ</th><th>المبلغ</th><th>من دفع</th><th>السبب</th><th></th></tr>';o.expenses.forEach(function(d){h+='<tr'+(eE&&eE.id===d.id?' style="background:#fff7e0"':'')+'><td>'+esc(d.date)+'</td><td class="num out">'+money(d.amount)+'</td><td>'+esc(d.by)+'</td><td>'+esc(d.reason||"")+'</td><td style="white-space:nowrap"><button class="ghost small" data-edite="'+d.id+'">تعديل</button> <button class="danger" data-dele="'+d.id+'">حذف</button></td></tr>'});h+='</table>'}else h+='<p class="muted">لا شيء بعد.</p>';
+  h+='<div class="form">'+(eE?'<b>تعديل المصروف المحدد</b>':'')+'<div class="grid2"><div><label>المبلغ (د.ك)</label><input id="eAmt" type="number" inputmode="decimal" step="0.001" value="'+(eE?esc(eE.amount):"")+'"></div><div><label>من دفع</label><select id="eBy">'+sel(people(),eE&&eE.by)+'</select></div></div><label>لماذا دفعها</label><input id="eWhy" value="'+(eE?esc(eE.reason||""):"")+'"><label>التاريخ</label><input id="eDate" type="date" value="'+(eE?esc(eE.date):today())+'"><div class="actions"><button id="eAdd">'+(eE?"حفظ التعديل":"إضافة")+'</button>'+(eE?'<button class="ghost" id="cancelEdit">إلغاء</button>':'')+'</div></div></div>';
   h+=settleHTML([o],'حساب هذه الطلبية');
   return h;
 }
@@ -212,16 +219,21 @@ document.addEventListener("click",function(ev){
   var t=ev.target.closest("button,[data-open],[data-pick]");if(!t)return;
   if(t.dataset.pick){state.pick=t.dataset.pick;return render()}
   if(t.id==="ok"&&state.pick){state.partner=state.pick;state.open=null;render();return scrollTo(0,0)}
-  if(t.id==="switch"){state.partner=null;state.open=null;return render()}
+  if(t.id==="switch"){state.partner=null;state.open=null;state.edit=null;return render()}
   if(t.id==="exp"){var b=new Blob([JSON.stringify(state.data,null,1)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="hesab-"+today()+".json";document.body.appendChild(a);a.click();a.remove();return}
   if(t.id==="impBtn")return $("imp").click();
   if(t.id==="pdf")return sendPDF();
-  if(t.dataset.open){state.open=t.dataset.open;render();return scrollTo(0,0)}
-  if(t.id==="back"){state.open=null;return render()}
+  if(t.dataset.open){state.open=t.dataset.open;state.edit=null;render();return scrollTo(0,0)}
+  if(t.id==="back"){state.open=null;state.edit=null;return render()}
+  if(t.id==="cancelEdit"){state.edit=null;return render()}
   var o=state.open&&state.data.orders.find(function(z){return z.id===state.open});
   if(t.id==="nAdd"){var c=val("nName");if(!c)return toast("اكتب اسم الزبون");var no={id:uid(),partner:state.partner,customer:c,desc:val("nDesc"),price:+val("nPrice")||0,date:val("nDate")||today(),phone:val("nPhone"),done:false,deposits:[],expenses:[]};state.data.orders.push(no);save();state.open=no.id;render();return scrollTo(0,0)}
-  if(t.id==="dAdd"&&o){var am=+val("dAmt");if(!am)return toast("اكتب المبلغ");o.deposits.push({id:uid(),amount:am,by:val("dBy"),note:val("dNote"),date:val("dDate")||today()});save();return render()}
-  if(t.id==="eAdd"&&o){var b2=+val("eAmt");if(!b2)return toast("اكتب المبلغ");if(!val("eWhy"))return toast("اكتب سبب الدفع");o.expenses.push({id:uid(),amount:b2,by:val("eBy"),reason:val("eWhy"),date:val("eDate")||today()});save();return render()}
+  if(t.id==="editOrder"&&o){state.edit={type:"order"};render();return scrollTo(0,0)}
+  if(t.id==="oSave"&&o){var nm=val("oName");if(!nm)return toast("اكتب اسم الزبون");o.customer=nm;o.desc=val("oDesc");o.price=+val("oPrice")||0;o.date=val("oDate")||o.date;o.phone=val("oPhone");var np=val("oPartner");state.edit=null;if(np&&np!==o.partner){o.partner=np;save();state.open=null;state.partner=np;return render()}save();return render()}
+  if(t.dataset.editd&&o){state.edit={type:"dep",id:t.dataset.editd};render();var f1=$("dAmt");if(f1)f1.scrollIntoView({block:"center"});return}
+  if(t.dataset.edite&&o){state.edit={type:"exp",id:t.dataset.edite};render();var f2=$("eAmt");if(f2)f2.scrollIntoView({block:"center"});return}
+  if(t.id==="dAdd"&&o){var am=+val("dAmt");if(!am)return toast("اكتب المبلغ");var rec={amount:am,by:val("dBy"),note:val("dNote"),date:val("dDate")||today()};var cur=state.edit&&state.edit.type==="dep"&&o.deposits.find(function(z){return z.id===state.edit.id});if(cur)Object.assign(cur,rec);else{rec.id=uid();o.deposits.push(rec)}state.edit=null;save();return render()}
+  if(t.id==="eAdd"&&o){var b2=+val("eAmt");if(!b2)return toast("اكتب المبلغ");if(!val("eWhy"))return toast("اكتب سبب الدفع");var rec2={amount:b2,by:val("eBy"),reason:val("eWhy"),date:val("eDate")||today()};var cur2=state.edit&&state.edit.type==="exp"&&o.expenses.find(function(z){return z.id===state.edit.id});if(cur2)Object.assign(cur2,rec2);else{rec2.id=uid();o.expenses.push(rec2)}state.edit=null;save();return render()}
   if(t.dataset.deld&&o){if(!confirm("حذف هذا المبلغ؟"))return;o.deposits=o.deposits.filter(function(z){return z.id!==t.dataset.deld});save();return render()}
   if(t.dataset.dele&&o){if(!confirm("حذف هذا المصروف؟"))return;o.expenses=o.expenses.filter(function(z){return z.id!==t.dataset.dele});save();return render()}
   if(t.id==="toggleDone"&&o){o.done=!o.done;save();return render()}
