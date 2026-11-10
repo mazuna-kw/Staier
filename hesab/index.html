@@ -82,6 +82,15 @@ function people(){return [ME,state.partner]}
 function ot(o){var g=0,s=0;(o.deposits||[]).forEach(function(d){g+=+d.amount||0});(o.expenses||[]).forEach(function(x){s+=+x.amount||0});return {got:g,spent:s,left:(+o.price||0)-g}}
 function personTotals(list){var t={};people().forEach(function(p){t[p]={got:0,paid:0}});list.forEach(function(o){(o.deposits||[]).forEach(function(d){if(t[d.by])t[d.by].got+=+d.amount||0});(o.expenses||[]).forEach(function(x){if(t[x.by])t[x.by].paid+=+x.amount||0})});return t}
 
+/* الحساب 50% × 50%: الربح = المستلم من الزبائن − المصروفات.
+   باقي لكل شريك = ما دفعه + نصف الربح − ما استلمه (موجب: له، سالب: عليه) */
+function settle(list){var t=personTotals(list),G=0,S=0;people().forEach(function(p){G+=t[p].got;S+=t[p].paid});var profit=G-S;people().forEach(function(p){var x=t[p];x.share=profit/2;x.due=x.paid+x.share-x.got});return {t:t,profit:profit}}
+function settleHTML(list,title){
+  var r=settle(list),ps=people(),h='<div class="card"><h2>'+title+'</h2><div class="row" style="font-size:15px"><span>صافي الربح (المستلم − المصروف)</span><span class="num '+(r.profit<0?"out":"in")+'">'+money(r.profit)+'</span></div><p class="muted">القسمة 50% × 50%.</p><div class="grid2">';
+  ps.forEach(function(p){var x=r.t[p];h+='<div class="box"><b>'+esc(p)+'</b><div class="row"><span>استلم</span><span class="num">'+money(x.got)+'</span></div><div class="row"><span>دفع</span><span class="num">'+money(x.paid)+'</span></div><div class="row"><span>نصيبه من الربح</span><span class="num">'+money(x.share)+'</span></div><div class="row" style="font-size:15px;border-top:1px solid var(--line);margin-top:6px;padding-top:6px"><span>'+(x.due>=0?"باقي له":"عليه")+'</span><span class="num '+(x.due>=0?"in":"out")+'">'+money(Math.abs(x.due))+'</span></div></div>'});
+  var a=r.t[ps[0]].due;h+='</div>'+settleLine(a,ps)+'</div>';return h}
+function settleLine(a,ps){if(Math.abs(a)<0.0005)return '<div class="box" style="margin-top:10px;text-align:center"><b>الحساب متساوي، لا أحد عليه شيء</b></div>';var from=a>0?ps[1]:ps[0],to=a>0?ps[0]:ps[1];return '<div class="box" style="margin-top:10px;text-align:center;background:#1f3a5f;color:#fff"><b>'+esc(from)+' يدفع لـ '+esc(to)+' <span class="num">'+money(Math.abs(a))+'</span></b></div>'}
+
 function render(){
   $("switch").classList.toggle("hidden",!state.partner);
   $("title").textContent=state.partner?"حسابات "+state.partner:"حسابات الشركاء";
@@ -103,12 +112,12 @@ function partnerView(){
   var list=myOrders(),t=personTotals(list),G=0,S=0,L=0;
   list.forEach(function(o){var x=ot(o);G+=x.got;S+=x.spent;if(!o.done)L+=Math.max(0,x.left)});
   var h='<div class="card"><h2>زبون وطلبية جديدة</h2><label>اسم الزبون</label><input id="nName"><label>الطلبية</label><input id="nDesc"><div class="grid2"><div><label>السعر المتفق عليه (د.ك)</label><input id="nPrice" type="number" inputmode="decimal" step="0.001"></div><div><label>التاريخ</label><input id="nDate" type="date" value="'+today()+'"></div></div><label>رقم الزبون (اختياري)</label><input id="nPhone" inputmode="tel"><div class="actions"><button id="nAdd" style="flex:1">إضافة</button></div></div>';
-  h+='<div class="card total"><div class="row"><span>المستلم من الزبائن</span><span class="num">'+money(G)+'</span></div><div class="row"><span>المصروف على الطلبيات</span><span class="num">'+money(S)+'</span></div><div class="row"><span>المستلم ناقص المصروف</span><span class="num">'+money(G-S)+'</span></div><div class="row"><span>الباقي على الزبائن</span><span class="num">'+money(L)+'</span></div><div class="muted">'+list.length+' طلبية</div></div>';
-  h+='<div class="card"><div class="grid2">';
-  people().forEach(function(p){var x=t[p];h+='<div class="box"><b>'+esc(p)+'</b><div class="row"><span>استلم</span><span class="num in">'+money(x.got)+'</span></div><div class="row"><span>دفع</span><span class="num out">'+money(x.paid)+'</span></div><div class="row"><span>الصافي معه</span><span class="num '+(x.got-x.paid<0?"out":"in")+'">'+money(x.got-x.paid)+'</span></div></div>'});
-  h+='</div><div class="actions"><button id="pdf" style="flex:1">📄 إرسال الملخص PDF لـ '+esc(state.partner)+'</button></div></div>';
-  if(!list.length)return h+'<div class="card muted" style="text-align:center">لا توجد طلبيات مع '+esc(state.partner)+' بعد.</div>';
+  h+='<h2 style="margin:16px 4px 8px">الطلبيات</h2>';
+  if(!list.length)h+='<div class="card muted" style="text-align:center">لا توجد طلبيات مع '+esc(state.partner)+' بعد.</div>';
   list.slice().sort(function(a,b){return (a.done-b.done)||String(b.date).localeCompare(a.date)}).forEach(function(o){var x=ot(o);h+='<div class="card order" data-open="'+o.id+'"><div class="top"><b>'+esc(o.customer)+'</b><span class="muted">'+esc(o.date||"")+'</span></div><div class="muted">'+esc(o.desc||"")+'</div><div class="chips"><span class="chip">السعر '+money(o.price)+'</span><span class="chip">مستلم '+money(x.got)+'</span><span class="chip">مصروف '+money(x.spent)+'</span>'+(o.done?'<span class="chip done">منتهية</span>':'<span class="chip">الباقي '+money(x.left)+'</span>')+'</div></div>'});
+  h+='<div class="card total"><div class="row"><span>المستلم من الزبائن</span><span class="num">'+money(G)+'</span></div><div class="row"><span>المصروف على الطلبيات</span><span class="num">'+money(S)+'</span></div><div class="row"><span>المستلم ناقص المصروف</span><span class="num">'+money(G-S)+'</span></div><div class="row"><span>الباقي على الزبائن</span><span class="num">'+money(L)+'</span></div><div class="muted">'+list.length+' طلبية</div></div>';
+  h+=settleHTML(list,'الحساب بيننا (كل الطلبيات)').replace(/<\/div>$/,'');
+  h+='<div class="actions"><button id="pdf" style="flex:1">📄 إرسال الملخص PDF لـ '+esc(state.partner)+'</button></div></div>';
   return h;
 }
 
@@ -126,13 +135,14 @@ function orderView(id){
   h+='<div class="card"><h3>🧾 المصروفات على الطلبية</h3>';
   if((o.expenses||[]).length){h+='<table><tr><th>التاريخ</th><th>المبلغ</th><th>من دفع</th><th>السبب</th><th></th></tr>';o.expenses.forEach(function(d){h+='<tr><td>'+esc(d.date)+'</td><td class="num out">'+money(d.amount)+'</td><td>'+esc(d.by)+'</td><td>'+esc(d.reason||"")+'</td><td><button class="danger" data-dele="'+d.id+'">حذف</button></td></tr>'});h+='</table>'}else h+='<p class="muted">لا شيء بعد.</p>';
   h+='<div class="form"><div class="grid2"><div><label>المبلغ (د.ك)</label><input id="eAmt" type="number" inputmode="decimal" step="0.001"></div><div><label>من دفع</label><select id="eBy">'+opts()+'</select></div></div><label>لماذا دفعها</label><input id="eWhy"><label>التاريخ</label><input id="eDate" type="date" value="'+today()+'"><div class="actions"><button id="eAdd">إضافة</button></div></div></div>';
+  h+=settleHTML([o],'حساب هذه الطلبية');
   return h;
 }
 
 /* ملخص PDF: يُرسم على Canvas (يدعم العربية) ثم يُوضع في ملف PDF */
 function buildPages(){
   var W=1240,H=1754,M=80,pages=[],c,ctx,y;
-  var list=myOrders().slice().sort(function(a,b){return String(a.date).localeCompare(b.date)}),t=personTotals(list),G=0,S=0,L=0;
+  var list=myOrders().slice().sort(function(a,b){return String(a.date).localeCompare(b.date)}),G=0,S=0,L=0;
   list.forEach(function(o){var x=ot(o);G+=x.got;S+=x.spent;if(!o.done)L+=Math.max(0,x.left)});
   function page(){c=document.createElement("canvas");c.width=W;c.height=H;ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,W,H);ctx.direction="rtl";ctx.textBaseline="top";pages.push(c);y=M}
   function font(s,b){ctx.font=(b?"bold ":"")+s+"px Tahoma, Arial, sans-serif"}
@@ -145,7 +155,9 @@ function buildPages(){
   y=210;
   [["المستلم من الزبائن",G],["المصروف على الطلبيات",S],["المستلم ناقص المصروف",G-S],["الباقي على الزبائن",L]].forEach(function(r){txt(r[0],W-M,28);txt(money(r[1]),M,28,true,"#1d2433","left");y+=48});
   y+=10;line();y+=24;
-  people().forEach(function(p){var x=t[p];txt(p,W-M,30,true,"#1f3a5f");y+=46;txt("استلم: "+money(x.got)+"     دفع: "+money(x.paid)+"     الصافي معه: "+money(x.got-x.paid),W-M,26);y+=56});
+  var st=settle(list),ps=people();txt("صافي الربح: "+money(st.profit)+"   (القسمة 50% × 50%)",W-M,28,true);y+=56;
+  ps.forEach(function(p){var x=st.t[p];txt(p,W-M,30,true,"#1f3a5f");y+=46;txt("استلم "+money(x.got)+"   •   دفع "+money(x.paid)+"   •   نصيبه "+money(x.share)+"   •   "+(x.due>=0?"باقي له ":"عليه ")+money(Math.abs(x.due)),W-M,25);y+=56});
+  var a0=st.t[ps[0]].due;ctx.fillStyle="#1f3a5f";ctx.fillRect(M,y-8,W-2*M,64);y+=6;txt(Math.abs(a0)<0.0005?"الحساب متساوي":((a0>0?ps[1]:ps[0])+" يدفع لـ "+(a0>0?ps[0]:ps[1])+": "+money(Math.abs(a0))),W/2,30,true,"#fff","center");y+=76;
   line();y+=30;txt("تفاصيل الطلبيات",W-M,32,true,"#1f3a5f");y+=60;
   list.forEach(function(o){
     var x=ot(o),rows=(o.deposits||[]).length+(o.expenses||[]).length;need(150+rows*40);
